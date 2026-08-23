@@ -47,6 +47,13 @@ dev = [
 [tool.hatch.build.targets.wheel]
 packages = ["src/reaper_mcp"]
 
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+# reapy warns at import when REAPER isn't running. The tests deliberately do not
+# need REAPER, so this is expected noise rather than a signal.
+filterwarnings = ["ignore::reapy.errors.DisabledDistAPIWarning"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
