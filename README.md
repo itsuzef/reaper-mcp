@@ -35,6 +35,38 @@ The server communicates with REAPER via [python-reapy](https://github.com/RomeoD
    ```
 4. Restart REAPER
 
+The bundled `scripts/enable_reapy.py` adds the project's virtual-environment
+packages before importing `reapy`, because REAPER's embedded Python does not
+inherit the normal shell environment. If REAPER does not define `__file__` for
+the script, the helper uses `REAPER_MCP_ROOT` or this default installation
+path:
+
+```bash
+export REAPER_MCP_ROOT="$PWD"
+```
+
+### Troubleshooting the distant API
+
+- `ModuleNotFoundError: No module named 'reapy'`: run the bundled helper from
+  this repository. Do not rely on REAPER's embedded Python to find the MCP
+  virtual environment automatically.
+- Python 3.14 may fail while `reapy.config.configure_reaper()` writes
+  `reaper.ini` because of a `configparser` compatibility issue. Use a Python
+  3.12 environment for `python-reapy` configuration and keep REAPER pointed at
+  the matching Python 3.12 dylib.
+- `OSError: [Errno 48] Address already in use` on port 2306 means the reapy
+  command server is already running. Do not launch
+  `activate_reapy_server.py` a second time; fully quit and reopen REAPER if a
+  stale server must be cleared.
+- If the web interface on port 2307 is listening but port 2306 is not, trigger
+  the registered `activate_reapy_server.py` action once from REAPER's action
+  list. After activation, test the bridge from the same environment used by
+  the MCP server.
+- If configuration fails, restore `reaper.ini` from the `.bak` file created by
+  reapy before retrying. Verify that it still contains the `[reaper]` section,
+  `reascript=1`, the Python 3.12 library settings, and the HTTP web interface
+  on port 2307.
+
 ## Usage
 
 ### With Claude Desktop
