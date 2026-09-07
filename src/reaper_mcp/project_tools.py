@@ -11,6 +11,14 @@ from reaper_mcp.connection import get_project
 logger = logging.getLogger("reaper_mcp.project_tools")
 
 
+def _project_time_signature(project, position=0.0):
+    """Return the native REAPER time signature at a project position."""
+    _, _, numerator, denominator, _ = RPR.TimeMap_GetTimeSigAtTime(
+        project.id, position, 0, 0, 0.0
+    )
+    return numerator, denominator
+
+
 def register_tools(mcp):
 
     @mcp.tool()
@@ -22,12 +30,23 @@ def register_tools(mcp):
             project.bpm = tempo
             if time_signature:
                 num, denom = map(int, time_signature.split("/"))
-                project.time_signature = (num, denom)
+                RPR.SetTempoTimeSigMarker(
+                    project.id,
+                    -1,
+                    0,
+                    0,
+                    0.0,
+                    tempo,
+                    num,
+                    denom,
+                    False,
+                )
+            actual_num, actual_denom = _project_time_signature(project)
             return {
                 "success": True,
                 "name": name or f"New Project {time.strftime('%Y-%m-%d %H-%M-%S')}",
                 "tempo": project.bpm,
-                "time_signature": time_signature,
+                "time_signature": f"{actual_num}/{actual_denom}",
             }
         except Exception as e:
             logger.error(f"create_project failed: {e}")
@@ -44,7 +63,7 @@ def register_tools(mcp):
                 os.makedirs(default_dir, exist_ok=True)
                 project_path = str(default_dir / f"{proj_name}.rpp")
             os.makedirs(os.path.dirname(os.path.abspath(project_path)), exist_ok=True)
-            project.save(project_path)
+            RPR.Main_SaveProjectEx(project.id, project_path, 0)
             return {"success": True, "project_path": project_path}
         except Exception as e:
             logger.error(f"save_project failed: {e}")
@@ -58,11 +77,12 @@ def register_tools(mcp):
                 return {"success": False, "error": f"File not found: {project_path}"}
             RPR.Main_openProject(project_path)
             project = get_project()
+            numerator, denominator = _project_time_signature(project)
             return {
                 "success": True,
                 "name": project.name,
                 "tempo": project.bpm,
-                "time_signature": f"{project.time_signature[0]}/{project.time_signature[1]}",
+                "time_signature": f"{numerator}/{denominator}",
                 "project_path": project_path,
             }
         except Exception as e:
@@ -74,6 +94,7 @@ def register_tools(mcp):
         """Get information about the current project: name, path, tempo, tracks, length."""
         try:
             project = get_project()
+            numerator, denominator = _project_time_signature(project)
             markers = []
             try:
                 for i in range(project.n_markers):
@@ -95,7 +116,7 @@ def register_tools(mcp):
                 "name": project.name,
                 "path": project.path,
                 "tempo": project.bpm,
-                "time_signature": f"{project.time_signature[0]}/{project.time_signature[1]}",
+                "time_signature": f"{numerator}/{denominator}",
                 "length": project.length,
                 "track_count": project.n_tracks,
                 "markers": markers,
@@ -120,7 +141,18 @@ def register_tools(mcp):
         """Set the project time signature, e.g. 4/4, 3/4, 6/8."""
         try:
             project = get_project()
-            project.time_signature = (numerator, denominator)
-            return {"success": True, "time_signature": f"{numerator}/{denominator}"}
+            RPR.SetTempoTimeSigMarker(
+                project.id,
+                -1,
+                project.cursor_position,
+                0,
+                0.0,
+                project.bpm,
+                numerator,
+                denominator,
+                False,
+            )
+            actual_num, actual_denom = _project_time_signature(project, project.cursor_position)
+            return {"success": True, "time_signature": f"{actual_num}/{actual_denom}"}
         except Exception as e:
             return {"success": False, "error": str(e)}
